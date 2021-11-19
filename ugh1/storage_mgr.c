@@ -68,6 +68,7 @@ RC openPageFile (char *fileName, SM_FileHandle *fHandle){
     fHandle->totalNumPages = totalPages;
     fHandle->fileName = fileName;
     fHandle->curPagePos = 0;
+    fHandle->mgmtInfo = NULL;
     
     check = fclose(file); // close file
     
@@ -76,8 +77,7 @@ RC openPageFile (char *fileName, SM_FileHandle *fHandle){
 
 // closePageFile Closes an open page file
 RC closePageFile (SM_FileHandle *fHandle){
-    if (file == NULL) return RC_FILE_NOT_FOUND;
-    else return RC_OK;
+    return RC_OK;
 }
 
 // destroyPageFile Destroys/deletes an open page file
