@@ -76,8 +76,8 @@ RC openPageFile (char *fileName, SM_FileHandle *fHandle){
 
 // closePageFile Closes an open page file
 RC closePageFile (SM_FileHandle *fHandle){
-    if (fclose(fHandle->mgmtInfo) == 0) return RC_OK;
-    else return RC_FILE_NOT_FOUND;
+    if (file == NULL) return RC_FILE_NOT_FOUND;
+    else return RC_OK;
 }
 
 // destroyPageFile Destroys/deletes an open page file
@@ -96,7 +96,6 @@ RC readBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage){
     RC check = RC_OK;
 
     if (fHandle == NULL) return RC_FILE_HANDLE_NOT_INIT;
-    if (fHandle->mgmtInfo == NULL) return RC_FILE_NOT_FOUND;
 
     // page exceeded max page
     if (fHandle->totalNumPages < pageNum || pageNum < 0) return RC_READ_NON_EXISTING_PAGE;
