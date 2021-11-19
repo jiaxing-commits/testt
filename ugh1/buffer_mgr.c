@@ -47,7 +47,7 @@ void LRU(BM_BufferPool *const bm, BM_PageFrame *page) {
 
 	SM_FileHandle file_handle;
 	BM_PageFrame *page_frame = (BM_PageFrame *) bm->mgmtData;
-	int least_hit_idx = -1;
+	int least_hit_idx = INT_MAX;
 	int least_hit_count = INT_MAX;
 
 	// Find the least hit count and the index of that page
