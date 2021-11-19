@@ -47,15 +47,23 @@ void LRU(BM_BufferPool *const bm, BM_PageFrame *page) {
 
 	SM_FileHandle file_handle;
 	BM_PageFrame *page_frame = (BM_PageFrame *) bm->mgmtData;
-	int least_hit_idx = INT_MAX;
-	int least_hit_count = INT_MAX;
+	int least_hit_idx = -1;
+	int least_hit_count = 10000;
 
 	// Find the least hit count and the index of that page
 	for (int i = 0; i < bm->numPages; i++) {
 
-		if (page_frame[i].hit_count < least_hit_count) {
+		if (page_frame[i].fix_count == 0) {
 			least_hit_count = page_frame[i].hit_count;
 			least_hit_idx = i;
+			break;
+		}
+	}
+
+	for (int j = least_hit_idx+1; j < bm->numPages; j++) {
+		if (page_frame[j].hit_count < least_hit_count) {
+			least_hit_count = page_frame[j].hit_count;
+			least_hit_idx = j;
 		}
 	}
 
