@@ -52,7 +52,8 @@ RC createPageFile (char *fileName) {
 // Returns RC_FILE_NOT_FOUND if the file does not exist.
 // If opening file is successful, the fHandle is initialized.
 RC openPageFile (char *fileName, SM_FileHandle *fHandle){
-
+    struct stat fileInfo;
+    int totalPages;
     RC check = RC_OK;
 
     file = fopen(fileName, "r+");
@@ -60,9 +61,8 @@ RC openPageFile (char *fileName, SM_FileHandle *fHandle){
     if (file == NULL) return RC_FILE_NOT_FOUND;
 
     // calculate numpages
-    struct stat fileInfo;
     if (fstat(fileno(file), &fileInfo) < 0) return RC_OPEN_FILE_ERROR;
-    int totalPages = fileInfo.st_size / PAGE_SIZE;
+    totalPages = fileInfo.st_size / PAGE_SIZE;
     
     // update totalNumPages, filename, and current position
     fHandle->totalNumPages = totalPages;
@@ -77,7 +77,8 @@ RC openPageFile (char *fileName, SM_FileHandle *fHandle){
 
 // closePageFile Closes an open page file
 RC closePageFile (SM_FileHandle *fHandle){
-    return RC_OK;
+    if (file == NULL) return RC_FILE_NOT_FOUND;
+    else return RC_OK;
 }
 
 // destroyPageFile Destroys/deletes an open page file

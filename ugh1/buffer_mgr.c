@@ -44,26 +44,18 @@ void FIFO(BM_BufferPool *const bm, BM_PageFrame *page) {
 
 // LRU Strategy-the page that has not been used for the longes time in memory will be selected for replacement
 void LRU(BM_BufferPool *const bm, BM_PageFrame *page) {
-
+	
 	SM_FileHandle file_handle;
 	BM_PageFrame *page_frame = (BM_PageFrame *) bm->mgmtData;
 	int least_hit_idx = -1;
-	int least_hit_count = 10000;
+	int least_hit_count = INT_MAX;
 
 	// Find the least hit count and the index of that page
 	for (int i = 0; i < bm->numPages; i++) {
 
-		if (page_frame[i].fix_count == 0) {
+		if (page_frame[i].hit_count < least_hit_count) {
 			least_hit_count = page_frame[i].hit_count;
 			least_hit_idx = i;
-			break;
-		}
-	}
-
-	for (int j = least_hit_idx+1; j < bm->numPages; j++) {
-		if (page_frame[j].hit_count < least_hit_count) {
-			least_hit_count = page_frame[j].hit_count;
-			least_hit_idx = j;
 		}
 	}
 
@@ -191,104 +183,92 @@ RC forcePage (BM_BufferPool *const bm, BM_PageHandle *const page) {
 	return RC_OK;
 }
 
-RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page, const PageNumber pageNum){
+RC pinPage(BM_BufferPool *const bm, BM_PageHandle *const page, const PageNumber pageNum) {
 
-	SM_FileHandle file_handle;
 	BM_PageFrame *page_frame = (BM_PageFrame *) bm->mgmtData;
-	bool full = true;
-	RC check = RC_OK;
+	SM_FileHandle file_handle;
+	bool not_full = false;
 
-	if (page_frame[0].pageNum == -1) {
-
-		// first page to be pinned
-		page_frame[0].data = malloc(PAGE_SIZE);
-
-		check = openPageFile(bm->pageFile, &file_handle);
-		if (check != RC_OK) return RC_OPEN_FILE_ERROR;
-
-		readBlock(pageNum, &file_handle, page_frame[0].data);
-
-		// update page properties
-		page->pageNum = pageNum;
-		page->data = page_frame[0].data;
-		page_frame[0].fix_count += 1;
-		page_frame[0].pageNum = pageNum;
-		page_frame->num_reads,page_frame->global_hit,page_frame[0].hit_count,page_frame[0].reference_count = 0;
-		return check; // pin page successful
-	}
-
-	// if we found page and buffer is not full
-	for (int i = 0; i < bm->numPages; i++) {
-
-		if (page_frame[i].pageNum == -1) {
-			page_frame[i].data = (SM_PageHandle) malloc(PAGE_SIZE);
-
-			check = openPageFile(bm->pageFile, &file_handle);
-			if (check != RC_OK) return RC_OPEN_FILE_ERROR;
+	if (page_frame[0].pageNum != -1) {
+		// if we found page and buffer is not full
+		for (int i = 0; i < bm->numPages; i++) {
 			
-			readBlock(pageNum, &file_handle, page_frame[i].data);
+			if (page_frame[i].pageNum >= 0) {
 
-			page_frame[i].fix_count = 1, page_frame[i].reference_count = 0, page_frame[i].pageNum = pageNum;
-			page->pageNum = pageNum, page->data = page_frame[i].data;
+				if (page_frame[i].pageNum == pageNum) {
 
-			page_frame->num_reads++, page_frame->global_hit++;
+					page_frame->global_hit++, page_frame[i].fix_count++;
 
-			full = false;
+					if (bm->strategy == RS_LRU) page_frame[i].hit_count = page_frame->global_hit;
 
-			break;
+					page->data = page_frame[i].data, page->pageNum = pageNum;
 
-		} else {
+					not_full = true;
 
-			if (page_frame[i].pageNum == pageNum) {
+					break;
+				}
+				
+			} else {
 
-				page_frame[i].fix_count++, page_frame->global_hit++;
+				page_frame[i].reference_count = 0, page_frame[i].fix_count = 1;
+				page_frame[i].pageNum = pageNum;
 
+				openPageFile(bm->pageFile, &file_handle);
+
+				page_frame[i].data = (SM_PageHandle) malloc(PAGE_SIZE);
+
+				readBlock(pageNum, &file_handle, page_frame[i].data);
+
+				page_frame->global_hit++, page_frame->num_reads++;
 				// replacement strategy-specfic case for LRU
 				if (bm->strategy == RS_LRU) page_frame[i].hit_count = page_frame->global_hit;
 
-				page->pageNum = pageNum;
-				page->data = page_frame[i].data;
+				page->pageNum = pageNum, page->data = page_frame[i].data;
 
-				full = false;
+				not_full = true;
 
 				break;
 			}
-
 		}
+
+		if (!not_full) { // a page which already exists in buffer pool is to be replaced since pool is full
+
+			BM_PageFrame *new_page = (BM_PageFrame *) malloc(sizeof(BM_PageFrame));
+			openPageFile(bm->pageFile, &file_handle); // open new page
+			new_page->data = (SM_PageHandle) malloc(PAGE_SIZE); // allocate memory
+			readBlock(pageNum, &file_handle, new_page->data);
+
+			new_page->reference_count = 0, new_page->dirty_bit = 0, new_page->fix_count = 1;
+			page_frame->global_hit++, page_frame->num_reads++;
+			new_page->pageNum = pageNum, page->pageNum = pageNum;
+			page->data = new_page->data;
+
+			if (bm->strategy == RS_FIFO) FIFO(bm, new_page);
+			else if (bm->strategy == RS_LRU) {
+				new_page->hit_count = page_frame->global_hit;
+				LRU(bm, new_page);
+			}
+		}
+		
+	} else {
+		openPageFile(bm->pageFile, &file_handle);
+		// first page to be pinned
+		page_frame[0].data = (SM_PageHandle) malloc(PAGE_SIZE);
+		readBlock(pageNum, &file_handle, page_frame[0].data);
+
+		// update page properties
+		page->pageNum = pageNum, page_frame[0].pageNum = pageNum;
+
+		page_frame->global_hit = 0, page_frame->num_reads = 0, page_frame[0].reference_count = 0;
+
+		page_frame[0].hit_count = page_frame->global_hit;
+
+		page->data = page_frame[0].data;
+		page_frame[0].fix_count++;
+
+
 	}
-
-	if(full) { // a page which already exists in buffer pool is to be replaced since pool is full
-
-		BM_PageFrame *new_page = (BM_PageFrame *) malloc(sizeof(BM_PageFrame));
-
-		new_page->data = (SM_PageHandle) malloc(PAGE_SIZE); // allocate memory
-
-		check = openPageFile(bm->pageFile, &file_handle); // open new page
-		if (check != RC_OK) return RC_OPEN_FILE_ERROR;
-
-		readBlock(pageNum, &file_handle, new_page->data);
-
-		new_page->fix_count = 1, new_page->dirty_bit = 0, new_page->reference_count = 0, new_page->pageNum = pageNum;
-		page_frame->num_reads++, page_frame->global_hit++;
-
-		ReplacementStrategy bmStrategy = bm->strategy;
-		if(bmStrategy == 0) {
-			page->pageNum = pageNum, page->data = new_page->data;
-			FIFO(bm, new_page); // FIFO Strategy
-		}
-		else if(bmStrategy == 1) {
-			new_page->hit_count = page_frame->global_hit;
-			page->pageNum = pageNum, page->data = new_page->data;
-			LRU(bm, new_page); // LRU Strategy
-		}
-		else {
-			free(new_page);
-			check = RC_NO_STRATEGY_FOUND;
-		}
-		free(new_page);
-	}
-
-	return check;
+	return RC_OK;
 }
 
 // Statistics Interface
