@@ -195,12 +195,10 @@ RC pinPage (BM_BufferPool *const bm, BM_PageHandle *const page, const PageNumber
 		// first page to be pinned
 		page_frame[0].data = malloc(PAGE_SIZE);
 
-
 		check = openPageFile(bm->pageFile, &file_handle);
 		if (check != RC_OK) return RC_OPEN_FILE_ERROR;
 
-		check = readBlock(pageNum, &file_handle, page_frame[0].data);
-		if (check != RC_OK) return RC_READ_FAILED;
+		readBlock(pageNum, &file_handle, page_frame[0].data);
 
 		// update page properties
 		page->pageNum = pageNum;
