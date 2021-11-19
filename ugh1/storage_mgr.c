@@ -55,7 +55,7 @@ RC openPageFile (char *fileName, SM_FileHandle *fHandle){
 
     RC check = RC_OK;
 
-    file = fopen(fileName, "r");
+    file = fopen(fileName, "r+");
     
     if (file == NULL) return RC_FILE_NOT_FOUND;
 
@@ -100,7 +100,7 @@ RC readBlock (int pageNum, SM_FileHandle *fHandle, SM_PageHandle memPage){
     // page exceeded max page
     if (fHandle->totalNumPages < pageNum || pageNum < 0) return RC_READ_NON_EXISTING_PAGE;
     
-    file = fopen(fHandle->fileName, "r");
+    file = fopen(fHandle->fileName, "r+");
     if (file == NULL) return RC_FILE_NOT_FOUND;
 
     // point file pointer to beginning of file
